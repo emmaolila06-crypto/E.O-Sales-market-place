@@ -78,3 +78,8 @@ These initial tests cover password hashing, JWT identity claims, supported langu
 - Seller portal: `/seller/portal`
 
 Both interfaces use the API's bearer-token login. Seller product publishing requires an administrator-approved seller profile. The seller portal currently supports viewing the seller's inventory, adding products, and viewing order lines. It is an initial portal, not yet a complete earnings/payout interface.
+
+
+### Seller order fulfilment
+
+Each order line now has its own fulfilment status so one seller cannot change another seller's part of a multi-vendor order. Sellers can advance only their own paid order items through processing, ready for collection or dispatched, and delivered. Apply database changes with `alembic upgrade head`. Seller fulfilment updates remain blocked until a trusted payment integration confirms the order as paid.
