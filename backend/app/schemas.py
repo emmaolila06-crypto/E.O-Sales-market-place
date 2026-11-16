@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
@@ -75,6 +77,11 @@ class OrderItemOut(BaseModel):
     unit_price_ugx: int
     line_total_ugx: int
     fulfilment_status: str
+    delivery_tracking_code: str | None = None
+    courier_name: str | None = None
+    courier_phone: str | None = None
+    dispatched_at: datetime | None = None
+    delivered_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -111,6 +118,14 @@ class AdminOrderStatus(BaseModel):
 
 class SellerFulfilmentUpdate(BaseModel):
     fulfilment_status: str = Field(pattern="^(processing|ready_for_collection|dispatched|delivered)$")
+    courier_name: str | None = Field(default=None, max_length=120)
+    courier_phone: str | None = Field(default=None, max_length=40)
+
+    @model_validator(mode="after")
+    def validate_courier_details(self):
+        if any(value is None for key, value in self.model_dump(exclude_unset=True).items() if key in {"courier_name", "courier_phone"}):
+            raise ValueError("Courier details cannot be cleared with null")
+        return self
 
 
 class CollectionPointCreate(BaseModel):
