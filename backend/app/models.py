@@ -82,5 +82,8 @@ class OrderItem(Base):
     unit_price_ugx: Mapped[int] = mapped_column(Integer)
     line_total_ugx: Mapped[int] = mapped_column(Integer)
     fulfilment_status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    commission_bps: Mapped[int] = mapped_column(Integer, default=1000)
+    platform_fee_ugx: Mapped[int] = mapped_column(Integer, default=0)
+    seller_earning_ugx: Mapped[int] = mapped_column(Integer, default=0)
 
     order: Mapped[Order] = relationship(back_populates="items")
