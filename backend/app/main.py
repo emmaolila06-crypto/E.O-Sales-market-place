@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+import secrets
 
 import jwt
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -351,6 +353,13 @@ def seller_orders(user: models.User = Depends(require_role("seller")), db: Sessi
                 "item_id": item.id,
                 "fulfilment_status": item.fulfilment_status,
                 "fulfilment_method": order.fulfilment_method,
+                "delivery_address": order.delivery_address,
+                "collection_point": order.collection_point,
+                "delivery_tracking_code": item.delivery_tracking_code,
+                "courier_name": item.courier_name,
+                "courier_phone": item.courier_phone,
+                "dispatched_at": item.dispatched_at,
+                "delivered_at": item.delivered_at,
             },
         }
         for item, order in rows
@@ -382,9 +391,38 @@ def update_seller_order_item_status(item_id: int, payload: schemas.SellerFulfilm
         raise HTTPException(status_code=409, detail="Ready for collection applies only to collection orders")
     if target == "dispatched" and order.fulfilment_method != "home_delivery":
         raise HTTPException(status_code=409, detail="Dispatch applies only to home-delivery orders")
+    if target == "dispatched":
+        if not payload.courier_name or not payload.courier_phone:
+            raise HTTPException(status_code=422, detail="Courier name and phone are required when dispatching")
+        item.courier_name = payload.courier_name.strip()
+        item.courier_phone = payload.courier_phone.strip()
+        if not item.courier_name or not item.courier_phone:
+            raise HTTPException(status_code=422, detail="Courier name and phone cannot be blank")
+        item.delivery_tracking_code = "EO-" + secrets.token_hex(5).upper()
+        item.dispatched_at = datetime.now(timezone.utc)
+    if target == "delivered":
+        item.delivered_at = datetime.now(timezone.utc)
     item.fulfilment_status = target
     db.commit()
-    return {"item_id": item.id, "fulfilment_status": item.fulfilment_status}
+    return {"item_id": item.id, "fulfilment_status": item.fulfilment_status,
+            "delivery_tracking_code": item.delivery_tracking_code, "courier_name": item.courier_name,
+            "courier_phone": item.courier_phone}
+
+
+@app.get("/orders/{order_id}/tracking")
+def customer_order_tracking(order_id: int, user: models.User = Depends(require_role("customer")), db: Session = Depends(get_db)):
+    order = db.scalar(select(models.Order).options(selectinload(models.Order.items)).where(models.Order.id == order_id, models.Order.customer_id == user.id))
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return {
+        "order_id": order.id,
+        "fulfilment_method": order.fulfilment_method,
+        "destination": order.delivery_address if order.fulfilment_method == "home_delivery" else order.collection_point,
+        "items": [{"item_id": item.id, "product_name": item.product_name, "status": item.fulfilment_status,
+                   "tracking_code": item.delivery_tracking_code, "courier_name": item.courier_name,
+                   "courier_phone": item.courier_phone, "dispatched_at": item.dispatched_at,
+                   "delivered_at": item.delivered_at} for item in order.items],
+    }
 
 @app.get("/admin/sellers")
 def pending_sellers(user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
