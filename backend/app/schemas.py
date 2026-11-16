@@ -64,6 +64,7 @@ class OrderCreate(BaseModel):
     fulfilment_method: str = Field(pattern="^(home_delivery|collection)$")
     delivery_address: str | None = Field(default=None, max_length=2000)
     collection_point: str | None = Field(default=None, max_length=255)
+    collection_point_id: int | None = Field(default=None, gt=0)
 
 
 class OrderItemOut(BaseModel):
@@ -110,3 +111,26 @@ class AdminOrderStatus(BaseModel):
 
 class SellerFulfilmentUpdate(BaseModel):
     fulfilment_status: str = Field(pattern="^(processing|ready_for_collection|dispatched|delivered)$")
+
+
+class CollectionPointCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    address: str = Field(min_length=5, max_length=500)
+    district: str = Field(default="", max_length=100)
+    contact_phone: str | None = Field(default=None, max_length=40)
+    opening_hours: str | None = Field(default=None, max_length=160)
+
+
+class CollectionPointUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=160)
+    address: str | None = Field(default=None, min_length=5, max_length=500)
+    district: str | None = Field(default=None, max_length=100)
+    contact_phone: str | None = Field(default=None, max_length=40)
+    opening_hours: str | None = Field(default=None, max_length=160)
+    is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def reject_explicit_nulls(self):
+        if any(value is None for value in self.model_dump(exclude_unset=True).values()):
+            raise ValueError("Collection point fields cannot be cleared with null")
+        return self
