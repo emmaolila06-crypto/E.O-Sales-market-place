@@ -33,3 +33,29 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local secrets and configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local databases and user uploads
+*.db
+*.sqlite
+uploads/
+media/
+
+# JavaScript
+node_modules/
+dist/
