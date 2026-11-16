@@ -83,3 +83,19 @@ def test_seller_fulfilment_update_rejects_unknown_status():
 
     with pytest.raises(ValidationError):
         SellerFulfilmentUpdate(fulfilment_status="paid")
+
+
+def test_platform_commission_calculation_rounds_to_nearest_ugx():
+    from app.main import calculate_platform_commission
+
+    assert calculate_platform_commission(10000, 1000) == 1000
+    assert calculate_platform_commission(105, 1000) == 11
+    assert calculate_platform_commission(10000, 0) == 0
+    assert calculate_platform_commission(10000, 10000) == 10000
+
+
+def test_platform_commission_rejects_invalid_inputs():
+    from app.main import calculate_platform_commission
+
+    with pytest.raises(ValueError):
+        calculate_platform_commission(100, 10001)
