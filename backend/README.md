@@ -88,3 +88,8 @@ Each order line now has its own fulfilment status so one seller cannot change an
 ### Marketplace commission and earnings
 
 The marketplace commission rate is configurable with `MARKETPLACE_COMMISSION_PERCENT` (default `10.0`). Each new order line stores the commission rate in basis points and the resulting UGX platform fee and seller net amount, so later rate changes do not rewrite historical order calculations. Seller earnings and administrator financial reports include confirmed paid orders only. Existing order lines created before this migration are assigned a 10% snapshot by the migration, but their fee and net amounts default to zero; review historical records before relying on those rows for accounting. Apply `alembic upgrade head` to add the commission columns. Payouts and actual money transfers remain disabled.
+
+
+## Collection point management
+
+Administrators can manage pickup locations from the Admin Dashboard under **Collection points**. Create a point with its name, district, full address, contact phone and opening hours, then activate or deactivate it. Customers see active collection points at checkout and orders store the selected collection point ID as well as a readable address snapshot. Apply the new database migration with `alembic upgrade head` before using this feature. Existing text-based collection details remain readable for historical orders.
