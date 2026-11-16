@@ -20,6 +20,8 @@ async def lifespan(app: FastAPI):
     # create_all is convenient for local setup. Use versioned migrations in production.
     if settings.jwt_expire_minutes <= 0:
         raise RuntimeError("JWT_EXPIRE_MINUTES must be greater than zero")
+    if not 0 <= settings.marketplace_commission_percent <= 100:
+        raise RuntimeError("MARKETPLACE_COMMISSION_PERCENT must be between 0 and 100")
     if settings.environment.lower() == "production":
         if len(settings.jwt_secret) < 32 or settings.jwt_secret == "replace-this-development-secret":
             raise RuntimeError("Set a unique JWT_SECRET of at least 32 characters in production")
