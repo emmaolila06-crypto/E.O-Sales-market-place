@@ -269,3 +269,118 @@ def reject_seller(seller_id: int, user: models.User = Depends(require_role("admi
     profile.status = "rejected"
     db.commit()
     return {"id": profile.id, "status": profile.status}
+
+
+@app.get("/admin/overview")
+def admin_overview(user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    from sqlalchemy import func
+
+    total_customers = db.scalar(select(func.count(models.User.id)).where(models.User.role == "customer")) or 0
+    total_sellers = db.scalar(select(func.count(models.SellerProfile.id))) or 0
+    pending_sellers = db.scalar(select(func.count(models.SellerProfile.id)).where(models.SellerProfile.status == "pending")) or 0
+    active_products = db.scalar(select(func.count(models.Product.id)).where(models.Product.is_active.is_(True))) or 0
+    total_orders = db.scalar(select(func.count(models.Order.id))) or 0
+    unpaid_orders = db.scalar(select(func.count(models.Order.id)).where(models.Order.payment_status == "unpaid")) or 0
+    paid_sales_ugx = db.scalar(select(func.coalesce(func.sum(models.Order.total_ugx), 0)).where(models.Order.payment_status == "paid")) or 0
+    return {
+        "customers": total_customers,
+        "sellers": total_sellers,
+        "pending_sellers": pending_sellers,
+        "active_products": active_products,
+        "orders": total_orders,
+        "unpaid_orders": unpaid_orders,
+        "paid_sales_ugx": int(paid_sales_ugx),
+        "currency": "UGX",
+    }
+
+
+@app.get("/admin/sellers/all")
+def admin_list_sellers(status_filter: str | None = None, user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    query = select(models.SellerProfile, models.User).join(models.User, models.User.id == models.SellerProfile.user_id)
+    if status_filter in {"pending", "approved", "rejected", "suspended"}:
+        query = query.where(models.SellerProfile.status == status_filter)
+    elif status_filter:
+        raise HTTPException(status_code=422, detail="Unsupported seller status filter")
+    rows = db.execute(query.order_by(models.SellerProfile.id.desc()).limit(200)).all()
+    return [
+        {"id": profile.id, "user_id": account.id, "store_name": profile.store_name,
+         "description": profile.description, "status": profile.status,
+         "seller_name": account.full_name, "email": account.email, "phone": account.phone}
+        for profile, account in rows
+    ]
+
+
+@app.get("/admin/products")
+def admin_list_products(user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    rows = db.execute(
+        select(models.Product, models.SellerProfile)
+        .join(models.SellerProfile, models.SellerProfile.id == models.Product.seller_id)
+        .order_by(models.Product.created_at.desc()).limit(200)
+    ).all()
+    return [
+        {"id": product.id, "seller_id": seller.id, "store_name": seller.store_name,
+         "name": product.name, "category": product.category, "price_ugx": product.price_ugx,
+         "stock_quantity": product.stock_quantity, "is_active": product.is_active}
+        for product, seller in rows
+    ]
+
+
+@app.post("/admin/products/{product_id}/deactivate")
+def admin_deactivate_product(product_id: int, user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    product = db.get(models.Product, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    product.is_active = False
+    db.commit()
+    return {"id": product.id, "is_active": product.is_active}
+
+
+@app.post("/admin/products/{product_id}/activate")
+def admin_activate_product(product_id: int, user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    product = db.get(models.Product, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    seller = db.get(models.SellerProfile, product.seller_id)
+    if not seller or seller.status != "approved":
+        raise HTTPException(status_code=409, detail="Only products from approved sellers can be activated")
+    product.is_active = True
+    db.commit()
+    return {"id": product.id, "is_active": product.is_active}
+
+
+@app.get("/admin/orders")
+def admin_list_orders(user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    orders = db.scalars(
+        select(models.Order).options(selectinload(models.Order.items))
+        .order_by(models.Order.created_at.desc()).limit(200)
+    ).all()
+    return [
+        {"id": order.id, "customer_id": order.customer_id, "status": order.status,
+         "payment_status": order.payment_status, "payment_method": order.payment_method,
+         "fulfilment_method": order.fulfilment_method, "total_ugx": order.total_ugx,
+         "created_at": order.created_at,
+         "items": [{"product_name": item.product_name, "quantity": item.quantity,
+                    "seller_id": item.seller_id, "line_total_ugx": item.line_total_ugx}
+                   for item in order.items]}
+        for order in orders
+    ]
+
+
+@app.patch("/admin/orders/{order_id}/status")
+def admin_update_order_status(order_id: int, payload: schemas.AdminOrderStatus,
+                              user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    order = db.get(models.Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    allowed_transitions = {
+        "awaiting_payment": {"processing"},
+        "processing": {"dispatched"},
+        "dispatched": {"delivered"},
+    }
+    if payload.status not in allowed_transitions.get(order.status, set()):
+        raise HTTPException(status_code=409, detail=f"Cannot change order status from {order.status} to {payload.status}")
+    if order.payment_status != "paid":
+        raise HTTPException(status_code=409, detail="An order cannot progress until payment is confirmed by a trusted payment integration")
+    order.status = payload.status
+    db.commit()
+    return {"id": order.id, "status": order.status, "payment_status": order.payment_status}
