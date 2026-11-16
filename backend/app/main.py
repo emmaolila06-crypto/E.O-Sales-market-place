@@ -456,6 +456,117 @@ def reject_seller(seller_id: int, user: models.User = Depends(require_role("admi
     return {"id": profile.id, "status": profile.status, "products_deactivated": True}
 
 
+
+def _seller_payout_totals(db: Session, seller_id: int):
+    from sqlalchemy import func
+
+    eligible = db.scalar(
+        select(func.coalesce(func.sum(models.OrderItem.seller_earning_ugx), 0))
+        .join(models.Order, models.Order.id == models.OrderItem.order_id)
+        .where(
+            models.OrderItem.seller_id == seller_id,
+            models.OrderItem.fulfilment_status == "delivered",
+            models.Order.payment_status == "paid",
+            models.Order.status != "cancelled",
+        )
+    ) or 0
+    reserved = db.scalar(
+        select(func.coalesce(func.sum(models.PayoutRequest.amount_ugx), 0)).where(
+            models.PayoutRequest.seller_id == seller_id,
+            models.PayoutRequest.status.in_(["pending", "approved_for_manual_processing"]),
+        )
+    ) or 0
+    return int(eligible), int(reserved), max(0, int(eligible) - int(reserved))
+
+
+@app.get("/seller/payouts")
+def seller_payouts(user: models.User = Depends(require_role("seller")), db: Session = Depends(get_db)):
+    profile = db.scalar(select(models.SellerProfile).where(models.SellerProfile.user_id == user.id))
+    if not profile:
+        raise HTTPException(status_code=404, detail="Seller profile not found")
+    eligible, reserved, available = _seller_payout_totals(db, profile.id)
+    requests = db.scalars(
+        select(models.PayoutRequest).where(models.PayoutRequest.seller_id == profile.id)
+        .order_by(models.PayoutRequest.created_at.desc())
+    ).all()
+    return {
+        "currency": "UGX",
+        "eligible_delivered_earnings_ugx": eligible,
+        "reserved_payouts_ugx": reserved,
+        "available_balance_ugx": available,
+        "payouts_enabled": False,
+        "requests": [{
+            "id": p.id, "amount_ugx": p.amount_ugx, "payout_method": p.payout_method,
+            "recipient_name": p.recipient_name, "payout_phone": p.payout_phone,
+            "status": p.status, "review_note": p.review_note, "created_at": p.created_at,
+            "reviewed_at": p.reviewed_at,
+        } for p in requests],
+    }
+
+
+@app.post("/seller/payouts", status_code=201)
+def create_seller_payout(payload: schemas.PayoutRequestCreate, user: models.User = Depends(require_role("seller")), db: Session = Depends(get_db)):
+    # Lock the seller row on databases that support row-level locks. This serializes
+    # balance checks so two concurrent requests cannot reserve the same earnings.
+    profile = db.scalar(
+        select(models.SellerProfile).where(models.SellerProfile.user_id == user.id).with_for_update()
+    )
+    if not profile or profile.status != "approved":
+        raise HTTPException(status_code=403, detail="An approved seller account is required")
+    eligible, reserved, available = _seller_payout_totals(db, profile.id)
+    if payload.amount_ugx > available:
+        raise HTTPException(status_code=409, detail=f"Requested amount exceeds your available delivered balance of {available} UGX")
+    request = models.PayoutRequest(
+        seller_id=profile.id,
+        amount_ugx=payload.amount_ugx,
+        payout_method=payload.payout_method,
+        recipient_name=payload.recipient_name.strip(),
+        payout_phone=payload.payout_phone.strip(),
+        status="pending",
+    )
+    if not request.recipient_name or not request.payout_phone:
+        raise HTTPException(status_code=422, detail="Recipient name and payout phone cannot be blank")
+    db.add(request)
+    db.commit()
+    db.refresh(request)
+    return {"id": request.id, "amount_ugx": request.amount_ugx, "status": request.status,
+            "message": "Request submitted for administrator review. No money has been transferred."}
+
+
+@app.get("/admin/payouts")
+def admin_payouts(user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    rows = db.execute(
+        select(models.PayoutRequest, models.SellerProfile, models.User)
+        .join(models.SellerProfile, models.SellerProfile.id == models.PayoutRequest.seller_id)
+        .join(models.User, models.User.id == models.SellerProfile.user_id)
+        .order_by(models.PayoutRequest.created_at.desc())
+    ).all()
+    return [{
+        "id": payout.id, "seller_id": profile.id, "store_name": profile.store_name,
+        "seller_name": seller.full_name, "seller_email": seller.email,
+        "amount_ugx": payout.amount_ugx, "payout_method": payout.payout_method,
+        "recipient_name": payout.recipient_name, "payout_phone": payout.payout_phone,
+        "status": payout.status, "review_note": payout.review_note,
+        "created_at": payout.created_at, "reviewed_at": payout.reviewed_at,
+    } for payout, profile, seller in rows]
+
+
+@app.patch("/admin/payouts/{payout_id}/review")
+def review_seller_payout(payout_id: int, payload: schemas.PayoutReview, user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    payout = db.scalar(select(models.PayoutRequest).where(models.PayoutRequest.id == payout_id).with_for_update())
+    if not payout:
+        raise HTTPException(status_code=404, detail="Payout request not found")
+    if payout.status != "pending":
+        raise HTTPException(status_code=409, detail="Only pending payout requests can be reviewed")
+    payout.status = payload.status
+    payout.review_note = payload.review_note.strip() if payload.review_note else None
+    payout.reviewed_by = user.id
+    payout.reviewed_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"id": payout.id, "status": payout.status,
+            "message": "Approved for manual processing only; no transfer was made." if payout.status == "approved_for_manual_processing" else "Payout request rejected."}
+
+
 @app.get("/seller/earnings")
 def seller_earnings(user: models.User = Depends(require_role("seller")), db: Session = Depends(get_db)):
     from sqlalchemy import func
