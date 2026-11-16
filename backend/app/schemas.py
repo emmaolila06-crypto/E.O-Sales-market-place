@@ -95,3 +95,7 @@ class ProductUpdate(BaseModel):
     price_ugx: int | None = Field(default=None, gt=0)
     stock_quantity: int | None = Field(default=None, ge=0)
     image_url: str | None = Field(default=None, max_length=1000)
+
+
+class AdminOrderStatus(BaseModel):
+    status: str = Field(pattern="^(processing|dispatched|delivered)$")
