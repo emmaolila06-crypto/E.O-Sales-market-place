@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 class UserCreate(BaseModel):
@@ -95,6 +95,12 @@ class ProductUpdate(BaseModel):
     price_ugx: int | None = Field(default=None, gt=0)
     stock_quantity: int | None = Field(default=None, ge=0)
     image_url: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def reject_explicit_nulls(self):
+        if any(value is None for value in self.model_dump(exclude_unset=True).values()):
+            raise ValueError("Product fields cannot be cleared with null; omit fields that should remain unchanged")
+        return self
 
 
 class AdminOrderStatus(BaseModel):
