@@ -41,3 +41,29 @@ The command creates or promotes that account to administrator and resets its pas
 This is a development foundation, not a production release. Checkout creates an unpaid order and reserves inventory; it does **not** process payments. Do not represent an order as paid until a verified payment-provider webhook confirms settlement. Inventory reservation expiry, cancellation/restock, refunds, commission accounting and seller payouts are not implemented yet.
 
 Database tables are currently created with SQLAlchemy `create_all` for local development. Add Alembic migrations before production. Also required: automated tests, audit logs, account verification and recovery, rate limiting, secure image storage, provider-specific payment integrations, delivery and collection-point workflows, monitoring, backups and an independent security review.
+
+
+## Database migrations
+For environments using Alembic, run from the `backend/` directory:
+
+```bash
+alembic upgrade head
+```
+
+Create a new migration after changing SQLAlchemy models:
+
+```bash
+alembic revision --autogenerate -m "describe schema change"
+```
+
+Review generated migration files before applying them. Development mode creates tables automatically for convenience; production mode expects migrations to be applied before the API starts.
+
+## Run automated checks
+From `backend/`:
+
+```bash
+pip install -r requirements.txt
+pytest
+```
+
+These initial tests cover password hashing, JWT identity claims, supported language values, positive UGX product prices, partial product updates, and order input validation. They are a starting point, not comprehensive integration or security tests.
