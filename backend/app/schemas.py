@@ -73,6 +73,7 @@ class OrderItemOut(BaseModel):
     quantity: int
     unit_price_ugx: int
     line_total_ugx: int
+    fulfilment_status: str
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -105,3 +106,7 @@ class ProductUpdate(BaseModel):
 
 class AdminOrderStatus(BaseModel):
     status: str = Field(pattern="^(processing|dispatched|delivered)$")
+
+
+class SellerFulfilmentUpdate(BaseModel):
+    fulfilment_status: str = Field(pattern="^(processing|ready_for_collection|dispatched|delivered)$")
