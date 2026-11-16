@@ -99,3 +99,28 @@ def test_platform_commission_rejects_invalid_inputs():
 
     with pytest.raises(ValueError):
         calculate_platform_commission(100, 10001)
+
+
+def test_collection_point_schemas_validate_required_location_details():
+    from app.schemas import CollectionPointCreate, CollectionPointUpdate
+
+    point = CollectionPointCreate(name="Kampala Central", address="Plot 10, Kampala Road", district="Kampala")
+    assert point.name == "Kampala Central"
+    assert CollectionPointUpdate(is_active=False).is_active is False
+
+
+def test_collection_point_update_rejects_explicit_null():
+    from app.schemas import CollectionPointUpdate
+
+    with pytest.raises(ValidationError):
+        CollectionPointUpdate(name=None)
+
+
+def test_order_can_reference_a_collection_point():
+    order = OrderCreate(
+        items=[{"product_id": 1, "quantity": 1}],
+        payment_method="mtn_momo",
+        fulfilment_method="collection",
+        collection_point_id=3,
+    )
+    assert order.collection_point_id == 3
