@@ -21,9 +21,13 @@ For a local PostgreSQL instance, set `DATABASE_URL` in your private `.env` file.
 - `GET /products`, `GET /products/{id}`, `POST /products`, `PATCH /products/{id}`
 - `POST /orders`, `GET /orders/my`
 - `GET /seller/orders`
-- `GET /admin/sellers`, `POST /admin/sellers/{id}/approve`, `POST /admin/sellers/{id}/reject`
+- `GET /admin/dashboard` (admin web interface; dashboard data APIs require admin login)
+- `GET /admin/overview`, `GET /admin/sellers/all`, `GET /admin/products`, `GET /admin/orders`
+- `POST /admin/sellers/{id}/approve`, `POST /admin/sellers/{id}/reject`
+- `POST /admin/products/{id}/activate`, `POST /admin/products/{id}/deactivate`
+- `PATCH /admin/orders/{id}/status` (only after payment is confirmed)
 
-Interactive API documentation is available at `/docs` while the service is running.
+Interactive API documentation is available at `/docs` while the service is running. The administrator web dashboard is served at `/admin/dashboard`.
 
 ## Seller onboarding
 Seller registrations create a pending seller profile. An administrator must approve the profile before the seller can publish products.
