@@ -71,3 +71,10 @@ pytest
 ```
 
 These initial tests cover password hashing, JWT identity claims, supported language values, positive UGX product prices, partial product updates, and order input validation. They are a starting point, not comprehensive integration or security tests.
+
+
+## Web interfaces
+- Administrator dashboard: `/admin/dashboard`
+- Seller portal: `/seller/portal`
+
+Both interfaces use the API's bearer-token login. Seller product publishing requires an administrator-approved seller profile. The seller portal currently supports viewing the seller's inventory, adding products, and viewing order lines. It is an initial portal, not yet a complete earnings/payout interface.
