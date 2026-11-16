@@ -217,24 +217,34 @@ def cancel_order(order_id: int, user: models.User = Depends(require_role("custom
     )
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    if order.payment_status != "unpaid" or order.status != "awaiting_payment":
-        raise HTTPException(status_code=409, detail="Only unpaid orders awaiting payment can be cancelled. Paid orders require a supported refund process.")
-    if order.status == "cancelled":
-        raise HTTPException(status_code=409, detail="This order has already been cancelled")
     try:
+        # Conditional update makes cancellation idempotent under concurrent requests.
+        changed = db.execute(
+            update(models.Order)
+            .where(
+                models.Order.id == order_id,
+                models.Order.customer_id == user.id,
+                models.Order.payment_status == "unpaid",
+                models.Order.status == "awaiting_payment",
+            )
+            .values(status="cancelled", payment_status="cancelled")
+        )
+        if changed.rowcount != 1:
+            raise HTTPException(
+                status_code=409,
+                detail="Only unpaid orders awaiting payment can be cancelled. Paid or already-cancelled orders cannot be cancelled here.",
+            )
         for item in order.items:
             db.execute(
                 update(models.Product)
                 .where(models.Product.id == item.product_id)
                 .values(stock_quantity=models.Product.stock_quantity + item.quantity)
             )
-        order.status = "cancelled"
-        order.payment_status = "cancelled"
         db.commit()
     except Exception:
         db.rollback()
         raise
-    return {"id": order.id, "status": order.status, "payment_status": order.payment_status}
+    return {"id": order.id, "status": "cancelled", "payment_status": "cancelled"}
 
 
 @app.get("/orders/my", response_model=list[schemas.OrderOut])
