@@ -19,7 +19,7 @@ For a local PostgreSQL instance, set `DATABASE_URL` in your private `.env` file.
 - `POST /auth/register`, `POST /auth/login`, `GET /auth/me`
 - `GET /seller/me`
 - `GET /products`, `GET /products/{id}`, `POST /products`, `PATCH /products/{id}`
-- `POST /orders`, `GET /orders/my`
+- `POST /orders`, `GET /orders/my`, `POST /orders/{id}/cancel` (unpaid orders only; restores stock)
 - `GET /seller/orders`
 - `GET /admin/dashboard` (admin web interface; dashboard data APIs require admin login)
 - `GET /admin/overview`, `GET /admin/sellers/all`, `GET /admin/products`, `GET /admin/orders`
@@ -42,9 +42,9 @@ python -m app.bootstrap_admin
 The command creates or promotes that account to administrator and resets its password. Remove the bootstrap password from the environment immediately afterward. Never expose admin registration publicly.
 
 ## Important limitations
-This is a development foundation, not a production release. Checkout creates an unpaid order and reserves inventory; it does **not** process payments. Do not represent an order as paid until a verified payment-provider webhook confirms settlement. Inventory reservation expiry, cancellation/restock, refunds, commission accounting and seller payouts are not implemented yet.
+This is a development foundation, not a production release. Checkout creates an unpaid order and reserves inventory; it does **not** process payments. Customers can cancel unpaid orders awaiting payment, which restores reserved stock. Do not represent an order as paid until a verified payment-provider webhook confirms settlement. Automatic reservation expiry, refunds, commission accounting and seller payouts are not implemented yet.
 
-Database tables are currently created with SQLAlchemy `create_all` for local development. Add Alembic migrations before production. Also required: automated tests, audit logs, account verification and recovery, rate limiting, secure image storage, provider-specific payment integrations, delivery and collection-point workflows, monitoring, backups and an independent security review.
+Database tables are created with SQLAlchemy `create_all` in development. The Docker image runs `alembic upgrade head` before starting the API. Before production launch, verify the migration against the target PostgreSQL database and take a backup. Also required: comprehensive integration tests, audit logs, account verification and recovery, rate limiting, secure image storage, provider-specific payment integrations, delivery and collection-point workflows, monitoring, backups and an independent security review.
 
 
 ## Database migrations
