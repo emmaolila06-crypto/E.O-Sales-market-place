@@ -170,6 +170,12 @@ def update_product(product_id: int, payload: schemas.ProductUpdate, user: models
     return product
 
 
+def calculate_platform_commission(line_total_ugx: int, commission_bps: int) -> int:
+    if line_total_ugx < 0 or not 0 <= commission_bps <= 10000:
+        raise ValueError("Invalid commission calculation inputs")
+    return (line_total_ugx * commission_bps + 5000) // 10000
+
+
 @app.post("/orders", response_model=schemas.OrderOut, status_code=201)
 def create_order(payload: schemas.OrderCreate, user: models.User = Depends(require_role("customer")), db: Session = Depends(get_db)):
     if payload.fulfilment_method == "home_delivery" and not payload.delivery_address:
@@ -204,6 +210,10 @@ def create_order(payload: schemas.OrderCreate, user: models.User = Depends(requi
             if result.rowcount != 1:
                 raise HTTPException(status_code=409, detail=f"Insufficient stock for {product.name}")
             line_total = product.price_ugx * quantity
+            commission_bps = int(round(settings.marketplace_commission_percent * 100))
+            if not 0 <= commission_bps <= 10000:
+                raise HTTPException(status_code=500, detail="Marketplace commission configuration must be between 0 and 100 percent")
+            platform_fee = calculate_platform_commission(line_total, commission_bps)
             total += line_total
             db.add(models.OrderItem(
                 order_id=order.id,
@@ -213,6 +223,9 @@ def create_order(payload: schemas.OrderCreate, user: models.User = Depends(requi
                 quantity=quantity,
                 unit_price_ugx=product.price_ugx,
                 line_total_ugx=line_total,
+                commission_bps=commission_bps,
+                platform_fee_ugx=platform_fee,
+                seller_earning_ugx=line_total - platform_fee,
             ))
         order.total_ugx = total
         db.commit()
@@ -363,6 +376,52 @@ def reject_seller(seller_id: int, user: models.User = Depends(require_role("admi
     db.commit()
     return {"id": profile.id, "status": profile.status, "products_deactivated": True}
 
+
+@app.get("/seller/earnings")
+def seller_earnings(user: models.User = Depends(require_role("seller")), db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    profile = db.scalar(select(models.SellerProfile).where(models.SellerProfile.user_id == user.id))
+    if not profile:
+        raise HTTPException(status_code=404, detail="Seller profile not found")
+    paid = models.Order.payment_status == "paid"
+    base = select(
+        func.coalesce(func.sum(models.OrderItem.seller_earning_ugx), 0),
+        func.coalesce(func.sum(models.OrderItem.platform_fee_ugx), 0),
+        func.count(models.OrderItem.id),
+    ).join(models.Order, models.Order.id == models.OrderItem.order_id).where(
+        models.OrderItem.seller_id == profile.id, paid, models.Order.status != "cancelled"
+    )
+    earned, commission, lines = db.execute(base).one()
+    return {"seller_id": profile.id, "paid_order_lines": lines, "gross_sales_ugx": int(earned + commission),
+            "platform_commission_ugx": int(commission), "net_earnings_ugx": int(earned),
+            "currency": "UGX", "payouts_enabled": False}
+
+
+@app.get("/admin/finance/report")
+def admin_finance_report(user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    paid = models.Order.payment_status == "paid"
+    totals = db.execute(select(
+        func.coalesce(func.sum(models.OrderItem.line_total_ugx), 0),
+        func.coalesce(func.sum(models.OrderItem.platform_fee_ugx), 0),
+        func.coalesce(func.sum(models.OrderItem.seller_earning_ugx), 0),
+        func.count(models.OrderItem.id),
+    ).join(models.Order, models.Order.id == models.OrderItem.order_id).where(paid, models.Order.status != "cancelled")).one()
+    rows = db.execute(select(
+        models.SellerProfile.id, models.SellerProfile.store_name,
+        func.coalesce(func.sum(models.OrderItem.line_total_ugx), 0),
+        func.coalesce(func.sum(models.OrderItem.platform_fee_ugx), 0),
+        func.coalesce(func.sum(models.OrderItem.seller_earning_ugx), 0),
+    ).join(models.OrderItem, models.OrderItem.seller_id == models.SellerProfile.id)
+     .join(models.Order, models.Order.id == models.OrderItem.order_id)
+     .where(paid, models.Order.status != "cancelled")
+     .group_by(models.SellerProfile.id, models.SellerProfile.store_name)
+     .order_by(models.SellerProfile.store_name)).all()
+    return {"paid_gross_sales_ugx": int(totals[0]), "platform_commission_ugx": int(totals[1]),
+            "seller_net_earnings_ugx": int(totals[2]), "paid_order_lines": int(totals[3]),
+            "currency": "UGX", "payouts_enabled": False,
+            "sellers": [{"seller_id": r[0], "store_name": r[1], "gross_sales_ugx": int(r[2]),
+                        "platform_commission_ugx": int(r[3]), "net_earnings_ugx": int(r[4])} for r in rows]}
 
 @app.get("/admin/overview")
 def admin_overview(user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
