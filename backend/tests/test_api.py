@@ -65,3 +65,7 @@ def test_order_requires_positive_quantity_and_supported_fulfilment():
             payment_method="crypto",
             fulfilment_method="home_delivery",
         )
+
+def test_product_update_rejects_explicit_null_values():
+    with pytest.raises(ValidationError):
+        ProductUpdate(description=None)
