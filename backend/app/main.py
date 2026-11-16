@@ -392,3 +392,17 @@ def admin_dashboard():
     # The dashboard shell is public; every data-changing API remains admin-authenticated.
     from pathlib import Path
     return FileResponse(Path(__file__).with_name("admin_dashboard.html"))
+
+
+@app.get("/seller/portal", include_in_schema=False)
+def seller_portal():
+    from pathlib import Path
+    return FileResponse(Path(__file__).with_name("seller_portal.html"))
+
+
+@app.get("/seller/products")
+def seller_products(user: models.User = Depends(require_role("seller")), db: Session = Depends(get_db)):
+    profile = db.scalar(select(models.SellerProfile).where(models.SellerProfile.user_id == user.id))
+    if not profile:
+        raise HTTPException(status_code=404, detail="Seller profile not found")
+    return db.scalars(select(models.Product).where(models.Product.seller_id == profile.id).order_by(models.Product.created_at.desc())).all()
