@@ -124,3 +124,17 @@ def test_order_can_reference_a_collection_point():
         collection_point_id=3,
     )
     assert order.collection_point_id == 3
+
+
+def test_seller_dispatch_requires_courier_contact_details():
+    from app.schemas import SellerFulfilmentUpdate
+
+    payload = SellerFulfilmentUpdate(fulfilment_status="dispatched", courier_name="Delivery Rider", courier_phone="+256700000000")
+    assert payload.courier_name == "Delivery Rider"
+    assert payload.courier_phone == "+256700000000"
+
+
+def test_seller_dispatch_schema_accepts_other_statuses_without_courier():
+    from app.schemas import SellerFulfilmentUpdate
+
+    assert SellerFulfilmentUpdate(fulfilment_status="processing").fulfilment_status == "processing"
