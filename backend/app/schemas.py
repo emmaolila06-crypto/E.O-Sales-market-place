@@ -87,3 +87,11 @@ class OrderOut(BaseModel):
     total_ugx: int
     items: list[OrderItemOut]
     model_config = ConfigDict(from_attributes=True)
+
+class ProductUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=180)
+    description: str | None = None
+    category: str | None = Field(default=None, max_length=100)
+    price_ugx: int | None = Field(default=None, gt=0)
+    stock_quantity: int | None = Field(default=None, ge=0)
+    image_url: str | None = Field(default=None, max_length=1000)
