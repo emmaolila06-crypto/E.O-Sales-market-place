@@ -149,3 +149,15 @@ class CollectionPointUpdate(BaseModel):
         if any(value is None for value in self.model_dump(exclude_unset=True).values()):
             raise ValueError("Collection point fields cannot be cleared with null")
         return self
+
+
+class PayoutRequestCreate(BaseModel):
+    amount_ugx: int = Field(gt=0)
+    payout_method: str = Field(pattern="^(mtn_momo|airtel_money)$")
+    recipient_name: str = Field(min_length=2, max_length=160)
+    payout_phone: str = Field(min_length=7, max_length=40)
+
+
+class PayoutReview(BaseModel):
+    status: str = Field(pattern="^(approved_for_manual_processing|rejected)$")
+    review_note: str | None = Field(default=None, max_length=500)
