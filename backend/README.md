@@ -20,7 +20,8 @@ For a local PostgreSQL instance, set `DATABASE_URL` in your private `.env` file.
 - `GET /seller/me`
 - `GET /products`, `GET /products/{id}`, `POST /products`, `PATCH /products/{id}`
 - `POST /orders`, `GET /orders/my`, `POST /orders/{id}/cancel` (unpaid orders only; restores stock)
-- `GET /seller/orders`
+- `GET /seller/orders`, `GET /seller/earnings`, `GET /seller/payouts`, `POST /seller/payouts` (delivered paid balance only)
+- `GET /admin/payouts`, `PATCH /admin/payouts/{id}/review` (approve for manual processing or reject)
 - `GET /admin/dashboard` (admin web interface; dashboard data APIs require admin login)
 - `GET /admin/overview`, `GET /admin/sellers/all`, `GET /admin/products`, `GET /admin/orders`
 - `POST /admin/sellers/{id}/approve`, `POST /admin/sellers/{id}/reject`
@@ -77,7 +78,7 @@ These initial tests cover password hashing, JWT identity claims, supported langu
 - Administrator dashboard: `/admin/dashboard`
 - Seller portal: `/seller/portal`
 
-Both interfaces use the API's bearer-token login. Seller product publishing requires an administrator-approved seller profile. The seller portal supports inventory management, order-line fulfilment and paid-order earnings summaries. Seller payouts are deliberately disabled until verified payment collection and a secure disbursement provider are integrated.
+Both interfaces use the API's bearer-token login. Seller product publishing requires an administrator-approved seller profile. The seller portal supports inventory management, order-line fulfilment, paid-order earnings summaries and payout request history. Sellers can request only from paid and delivered order-line earnings; administrators can approve requests for manual processing or reject them. Actual transfers remain disabled until verified payment collection and a secure disbursement provider are integrated.
 
 
 ### Seller order fulfilment
