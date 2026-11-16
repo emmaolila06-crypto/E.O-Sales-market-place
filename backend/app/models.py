@@ -81,5 +81,6 @@ class OrderItem(Base):
     quantity: Mapped[int] = mapped_column(Integer)
     unit_price_ugx: Mapped[int] = mapped_column(Integer)
     line_total_ugx: Mapped[int] = mapped_column(Integer)
+    fulfilment_status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
 
     order: Mapped[Order] = relationship(back_populates="items")
