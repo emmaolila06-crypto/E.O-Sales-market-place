@@ -214,8 +214,14 @@ def update_collection_point(point_id: int, payload: schemas.CollectionPointUpdat
 def create_order(payload: schemas.OrderCreate, user: models.User = Depends(require_role("customer")), db: Session = Depends(get_db)):
     if payload.fulfilment_method == "home_delivery" and not payload.delivery_address:
         raise HTTPException(status_code=422, detail="delivery_address is required for home delivery")
-    if payload.fulfilment_method == "collection" and not payload.collection_point:
-        raise HTTPException(status_code=422, detail="collection_point is required for collection")
+    selected_point = None
+    if payload.fulfilment_method == "collection":
+        if payload.collection_point_id is not None:
+            selected_point = db.scalar(select(models.CollectionPoint).where(models.CollectionPoint.id == payload.collection_point_id, models.CollectionPoint.is_active.is_(True)))
+            if not selected_point:
+                raise HTTPException(status_code=422, detail="Choose an active collection point")
+        elif not payload.collection_point:
+            raise HTTPException(status_code=422, detail="Choose a collection point")
     quantities: dict[int, int] = {}
     for line in payload.items:
         quantities[line.product_id] = quantities.get(line.product_id, 0) + line.quantity
@@ -224,7 +230,8 @@ def create_order(payload: schemas.OrderCreate, user: models.User = Depends(requi
         payment_method=payload.payment_method,
         fulfilment_method=payload.fulfilment_method,
         delivery_address=payload.delivery_address if payload.fulfilment_method == "home_delivery" else None,
-        collection_point=payload.collection_point if payload.fulfilment_method == "collection" else None,
+        collection_point=(f"{selected_point.name}, {selected_point.address}" if selected_point else payload.collection_point) if payload.fulfilment_method == "collection" else None,
+        collection_point_id=selected_point.id if selected_point else None,
         payment_status="unpaid",
         status="awaiting_payment",
     )
