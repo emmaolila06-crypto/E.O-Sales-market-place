@@ -98,3 +98,8 @@ Administrators can manage pickup locations from the Admin Dashboard under **Coll
 ## Delivery assignment and tracking
 
 For paid home-delivery order items, an approved seller moves the item to **Dispatched** and supplies the delivery person's name and phone number. The API creates a unique E.O tracking reference and records the dispatch time. The customer sees the item status, tracking reference and courier contact in My Orders. The customer-only `GET /orders/{order_id}/tracking` endpoint returns the destination and item-level tracking history; it verifies order ownership. Sellers see only the delivery address for their own order items. Delivery status is updated by the seller when the parcel is delivered. This is an internal marketplace tracking workflow, not a live GPS or third-party courier integration. Apply migrations with `alembic upgrade head` before using it.
+
+
+## Seller payout requests (preparation only)
+
+Seller balances available for payout include only order lines that are both confirmed paid and marked delivered. Pending and administrator-approved-for-manual-processing requests reserve that balance so the same earnings cannot be requested twice. Sellers can submit a request with a mobile-money destination; administrators can approve it for manual processing or reject it, with a review note and history retained. **Approval is not a payment:** the system has no mobile-money disbursement integration and has no "paid" payout state. Do not tell sellers that funds have been transferred. Apply migration `0006_seller_payouts` with `alembic upgrade head` before using these routes.
