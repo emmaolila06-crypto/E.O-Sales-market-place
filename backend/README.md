@@ -93,3 +93,8 @@ The marketplace commission rate is configurable with `MARKETPLACE_COMMISSION_PER
 ## Collection point management
 
 Administrators can manage pickup locations from the Admin Dashboard under **Collection points**. Create a point with its name, district, full address, contact phone and opening hours, then activate or deactivate it. Customers see active collection points at checkout and orders store the selected collection point ID as well as a readable address snapshot. Apply the new database migration with `alembic upgrade head` before using this feature. Existing text-based collection details remain readable for historical orders.
+
+
+## Delivery assignment and tracking
+
+For paid home-delivery order items, an approved seller moves the item to **Dispatched** and supplies the delivery person's name and phone number. The API creates a unique E.O tracking reference and records the dispatch time. The customer sees the item status, tracking reference and courier contact in My Orders. The customer-only `GET /orders/{order_id}/tracking` endpoint returns the destination and item-level tracking history; it verifies order ownership. Sellers see only the delivery address for their own order items. Delivery status is updated by the seller when the parcel is delivered. This is an internal marketplace tracking workflow, not a live GPS or third-party courier integration. Apply migrations with `alembic upgrade head` before using it.
