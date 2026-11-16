@@ -121,7 +121,7 @@ def seller_me(user: models.User = Depends(require_role("seller")), db: Session =
 @app.get("/products", response_model=list[schemas.ProductOut])
 def list_products(category: str | None = None, search: str | None = None, limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
     limit = max(1, min(limit, 100))
-    query = select(models.Product).where(models.Product.is_active.is_(True), models.Product.stock_quantity > 0)
+    query = select(models.Product).join(models.SellerProfile, models.SellerProfile.id == models.Product.seller_id).where(models.Product.is_active.is_(True), models.Product.stock_quantity > 0, models.SellerProfile.status == "approved")
     if category:
         query = query.where(models.Product.category == category)
     if search:
@@ -143,8 +143,16 @@ def create_product(payload: schemas.ProductCreate, user: models.User = Depends(r
 
 @app.get("/products/{product_id}", response_model=schemas.ProductOut)
 def get_product(product_id: int, db: Session = Depends(get_db)):
-    product = db.get(models.Product, product_id)
-    if not product or not product.is_active:
+    product = db.scalar(
+        select(models.Product)
+        .join(models.SellerProfile, models.SellerProfile.id == models.Product.seller_id)
+        .where(
+            models.Product.id == product_id,
+            models.Product.is_active.is_(True),
+            models.SellerProfile.status == "approved",
+        )
+    )
+    if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
 
@@ -314,8 +322,14 @@ def reject_seller(seller_id: int, user: models.User = Depends(require_role("admi
     if not profile:
         raise HTTPException(status_code=404, detail="Seller profile not found")
     profile.status = "rejected"
+    # Hide all existing listings immediately when a seller is rejected.
+    db.execute(
+        update(models.Product)
+        .where(models.Product.seller_id == profile.id)
+        .values(is_active=False)
+    )
     db.commit()
-    return {"id": profile.id, "status": profile.status}
+    return {"id": profile.id, "status": profile.status, "products_deactivated": True}
 
 
 @app.get("/admin/overview")
