@@ -18,8 +18,15 @@ from .security import create_access_token, decode_access_token, hash_password, v
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # create_all is convenient for local setup. Use versioned migrations in production.
-    if settings.environment.lower() == "production" and len(settings.jwt_secret) < 32:
-        raise RuntimeError("JWT_SECRET must be at least 32 characters in production")
+    if settings.jwt_expire_minutes <= 0:
+        raise RuntimeError("JWT_EXPIRE_MINUTES must be greater than zero")
+    if settings.environment.lower() == "production":
+        if len(settings.jwt_secret) < 32 or settings.jwt_secret == "replace-this-development-secret":
+            raise RuntimeError("Set a unique JWT_SECRET of at least 32 characters in production")
+        if "*" in settings.allowed_origins:
+            raise RuntimeError("Wildcard CORS origins are not allowed in production when credentials are enabled")
+        if not settings.allowed_origins:
+            raise RuntimeError("Set explicit CORS_ORIGINS for the production frontend")
     if settings.environment.lower() == "development":
         Base.metadata.create_all(bind=engine)
     yield
