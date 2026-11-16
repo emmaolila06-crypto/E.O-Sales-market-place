@@ -138,3 +138,28 @@ def test_seller_dispatch_schema_accepts_other_statuses_without_courier():
     from app.schemas import SellerFulfilmentUpdate
 
     assert SellerFulfilmentUpdate(fulfilment_status="processing").fulfilment_status == "processing"
+
+
+def test_seller_payout_request_schema_accepts_mobile_money_details():
+    from app.schemas import PayoutRequestCreate
+
+    payload = PayoutRequestCreate(amount_ugx=50000, payout_method="mtn_momo", recipient_name="Seller Name", payout_phone="+256700000000")
+    assert payload.amount_ugx == 50000
+    assert payload.payout_method == "mtn_momo"
+
+
+def test_seller_payout_request_schema_rejects_invalid_method_and_amount():
+    from app.schemas import PayoutRequestCreate
+
+    with pytest.raises(ValidationError):
+        PayoutRequestCreate(amount_ugx=0, payout_method="mtn_momo", recipient_name="Seller Name", payout_phone="+256700000000")
+    with pytest.raises(ValidationError):
+        PayoutRequestCreate(amount_ugx=1000, payout_method="crypto", recipient_name="Seller Name", payout_phone="+256700000000")
+
+
+def test_admin_payout_review_cannot_mark_transfer_paid():
+    from app.schemas import PayoutReview
+
+    assert PayoutReview(status="approved_for_manual_processing").status == "approved_for_manual_processing"
+    with pytest.raises(ValidationError):
+        PayoutReview(status="paid")
