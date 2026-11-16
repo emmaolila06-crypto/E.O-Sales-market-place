@@ -42,7 +42,7 @@ python -m app.bootstrap_admin
 The command creates or promotes that account to administrator and resets its password. Remove the bootstrap password from the environment immediately afterward. Never expose admin registration publicly.
 
 ## Important limitations
-This is a development foundation, not a production release. Checkout creates an unpaid order and reserves inventory; it does **not** process payments. Customers can cancel unpaid orders awaiting payment, which restores reserved stock. Do not represent an order as paid until a verified payment-provider webhook confirms settlement. Automatic reservation expiry, refunds, commission accounting and seller payouts are not implemented yet.
+This is a development foundation, not a production release. Checkout creates an unpaid order and reserves inventory; it does **not** process payments. Customers can cancel unpaid orders awaiting payment, which restores reserved stock. Do not represent an order as paid until a verified payment-provider webhook confirms settlement. Automatic reservation expiry, refunds and seller payouts are not implemented yet. Marketplace commission snapshots and paid-order earnings reports are now available; no earnings are treated as payable until a verified payment is confirmed.
 
 Database tables are created with SQLAlchemy `create_all` in development. The Docker image runs `alembic upgrade head` before starting the API. Before production launch, verify the migration against the target PostgreSQL database and take a backup. Also required: comprehensive integration tests, audit logs, account verification and recovery, rate limiting, secure image storage, provider-specific payment integrations, delivery and collection-point workflows, monitoring, backups and an independent security review.
 
@@ -70,16 +70,21 @@ pip install -r requirements.txt
 pytest
 ```
 
-These initial tests cover password hashing, JWT identity claims, supported language values, positive UGX product prices, partial product updates, and order input validation. They are a starting point, not comprehensive integration or security tests.
+These initial tests cover password hashing, JWT identity claims, supported language values, product and order validation, seller fulfilment input, and commission calculations. They are a starting point, not comprehensive integration or security tests.
 
 
 ## Web interfaces
 - Administrator dashboard: `/admin/dashboard`
 - Seller portal: `/seller/portal`
 
-Both interfaces use the API's bearer-token login. Seller product publishing requires an administrator-approved seller profile. The seller portal currently supports viewing the seller's inventory, adding products, and viewing order lines. It is an initial portal, not yet a complete earnings/payout interface.
+Both interfaces use the API's bearer-token login. Seller product publishing requires an administrator-approved seller profile. The seller portal supports inventory management, order-line fulfilment and paid-order earnings summaries. Seller payouts are deliberately disabled until verified payment collection and a secure disbursement provider are integrated.
 
 
 ### Seller order fulfilment
 
 Each order line now has its own fulfilment status so one seller cannot change another seller's part of a multi-vendor order. Sellers can advance only their own paid order items through processing, ready for collection or dispatched, and delivered. Apply database changes with `alembic upgrade head`. Seller fulfilment updates remain blocked until a trusted payment integration confirms the order as paid.
+
+
+### Marketplace commission and earnings
+
+The marketplace commission rate is configurable with `MARKETPLACE_COMMISSION_PERCENT` (default `10.0`). Each new order line stores the commission rate in basis points and the resulting UGX platform fee and seller net amount, so later rate changes do not rewrite historical order calculations. Seller earnings and administrator financial reports include confirmed paid orders only. Existing order lines created before this migration are assigned a 10% snapshot by the migration, but their fee and net amounts default to zero; review historical records before relying on those rows for accounting. Apply `alembic upgrade head` to add the commission columns. Payouts and actual money transfers remain disabled.
