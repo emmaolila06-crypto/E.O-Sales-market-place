@@ -24,13 +24,15 @@ def upgrade() -> None:
     op.create_index("ix_collection_points_is_active", "collection_points", ["is_active"])
     op.add_column("orders", sa.Column("collection_point_id", sa.Integer(), nullable=True))
     op.create_index("ix_orders_collection_point_id", "orders", ["collection_point_id"])
-    op.create_foreign_key("fk_orders_collection_point_id_collection_points", "orders", "collection_points", ["collection_point_id"], ["id"])
+    with op.batch_alter_table("orders") as batch_op:
+        batch_op.create_foreign_key("fk_orders_collection_point_id_collection_points", "collection_points", ["collection_point_id"], ["id"])
 
 
 def downgrade() -> None:
-    op.drop_constraint("fk_orders_collection_point_id_collection_points", "orders", type_="foreignkey")
+    with op.batch_alter_table("orders") as batch_op:
+        batch_op.drop_constraint("fk_orders_collection_point_id_collection_points", type_="foreignkey")
+        batch_op.drop_column("collection_point_id")
     op.drop_index("ix_orders_collection_point_id", table_name="orders")
-    op.drop_column("orders", "collection_point_id")
     op.drop_index("ix_collection_points_is_active", table_name="collection_points")
     op.drop_index("ix_collection_points_name", table_name="collection_points")
     op.drop_table("collection_points")
