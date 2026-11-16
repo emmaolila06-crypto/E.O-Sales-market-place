@@ -119,7 +119,7 @@ def list_products(category: str | None = None, search: str | None = None, limit:
 
 
 @app.post("/products", response_model=schemas.ProductOut, status_code=201)
-def create_product(payload: schemas.ProductCreate, user: models.User = Depends(require_role("seller")), db: Session = Depends(get_db)):
+def create_product(payload: schemas.ProductUpdate, user: models.User = Depends(require_role("seller")), db: Session = Depends(get_db)):
     profile = db.scalar(select(models.SellerProfile).where(models.SellerProfile.user_id == user.id))
     if not profile or profile.status != "approved":
         raise HTTPException(status_code=403, detail="Your seller account must be approved before listing products")
@@ -144,7 +144,7 @@ def update_product(product_id: int, payload: schemas.ProductCreate, user: models
     product = db.get(models.Product, product_id)
     if not profile or profile.status != "approved" or not product or product.seller_id != profile.id:
         raise HTTPException(status_code=404, detail="Product not found or not editable")
-    for key, value in payload.model_dump().items():
+    for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(product, key, value)
     db.commit()
     db.refresh(product)
