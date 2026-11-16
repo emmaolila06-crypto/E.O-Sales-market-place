@@ -64,6 +64,7 @@ class Order(Base):
     fulfilment_method: Mapped[str] = mapped_column(String(30))
     delivery_address: Mapped[str | None] = mapped_column(Text, nullable=True)
     collection_point: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    collection_point_id: Mapped[int | None] = mapped_column(ForeignKey("collection_points.id"), nullable=True, index=True)
     total_ugx: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -87,3 +88,16 @@ class OrderItem(Base):
     seller_earning_ugx: Mapped[int] = mapped_column(Integer, default=0)
 
     order: Mapped[Order] = relationship(back_populates="items")
+
+
+class CollectionPoint(Base):
+    __tablename__ = "collection_points"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    address: Mapped[str] = mapped_column(String(500))
+    district: Mapped[str] = mapped_column(String(100), default="")
+    contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    opening_hours: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
