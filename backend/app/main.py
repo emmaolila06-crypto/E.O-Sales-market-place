@@ -294,11 +294,43 @@ def seller_orders(user: models.User = Depends(require_role("seller")), db: Sessi
                 "quantity": item.quantity,
                 "unit_price_ugx": item.unit_price_ugx,
                 "line_total_ugx": item.line_total_ugx,
+                "item_id": item.id,
+                "fulfilment_status": item.fulfilment_status,
+                "fulfilment_method": order.fulfilment_method,
             },
         }
         for item, order in rows
     ]
 
+
+@app.patch("/seller/order-items/{item_id}/status")
+def update_seller_order_item_status(item_id: int, payload: schemas.SellerFulfilmentUpdate, user: models.User = Depends(require_role("seller")), db: Session = Depends(get_db)):
+    profile = db.scalar(select(models.SellerProfile).where(models.SellerProfile.user_id == user.id))
+    if not profile or profile.status != "approved":
+        raise HTTPException(status_code=403, detail="An approved seller account is required")
+    item = db.get(models.OrderItem, item_id)
+    if not item or item.seller_id != profile.id:
+        raise HTTPException(status_code=404, detail="Order item not found")
+    order = db.get(models.Order, item.order_id)
+    if not order or order.payment_status != "paid":
+        raise HTTPException(status_code=409, detail="Order items can only be processed after payment is confirmed")
+    allowed = {
+        "pending": {"processing"},
+        "processing": {"ready_for_collection", "dispatched"},
+        "ready_for_collection": {"delivered"},
+        "dispatched": {"delivered"},
+        "delivered": set(),
+    }
+    target = payload.fulfilment_status
+    if target not in allowed.get(item.fulfilment_status, set()):
+        raise HTTPException(status_code=409, detail=f"Cannot move item from {item.fulfilment_status} to {target}")
+    if target == "ready_for_collection" and order.fulfilment_method != "collection":
+        raise HTTPException(status_code=409, detail="Ready for collection applies only to collection orders")
+    if target == "dispatched" and order.fulfilment_method != "home_delivery":
+        raise HTTPException(status_code=409, detail="Dispatch applies only to home-delivery orders")
+    item.fulfilment_status = target
+    db.commit()
+    return {"item_id": item.id, "fulfilment_status": item.fulfilment_status}
 
 @app.get("/admin/sellers")
 def pending_sellers(user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
