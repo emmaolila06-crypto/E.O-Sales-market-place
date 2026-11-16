@@ -69,3 +69,17 @@ def test_order_requires_positive_quantity_and_supported_fulfilment():
 def test_product_update_rejects_explicit_null_values():
     with pytest.raises(ValidationError):
         ProductUpdate(description=None)
+
+
+def test_seller_fulfilment_update_accepts_supported_item_statuses():
+    from app.schemas import SellerFulfilmentUpdate
+
+    assert SellerFulfilmentUpdate(fulfilment_status="processing").fulfilment_status == "processing"
+    assert SellerFulfilmentUpdate(fulfilment_status="dispatched").fulfilment_status == "dispatched"
+
+
+def test_seller_fulfilment_update_rejects_unknown_status():
+    from app.schemas import SellerFulfilmentUpdate
+
+    with pytest.raises(ValidationError):
+        SellerFulfilmentUpdate(fulfilment_status="paid")
