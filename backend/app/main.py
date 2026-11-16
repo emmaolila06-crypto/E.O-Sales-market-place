@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 import jwt
 from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select, update
@@ -384,3 +385,10 @@ def admin_update_order_status(order_id: int, payload: schemas.AdminOrderStatus,
     order.status = payload.status
     db.commit()
     return {"id": order.id, "status": order.status, "payment_status": order.payment_status}
+
+
+@app.get("/admin/dashboard", include_in_schema=False)
+def admin_dashboard():
+    # The dashboard shell is public; every data-changing API remains admin-authenticated.
+    from pathlib import Path
+    return FileResponse(Path(__file__).with_name("admin_dashboard.html"))
