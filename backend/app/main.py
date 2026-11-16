@@ -17,6 +17,8 @@ from .security import create_access_token, decode_access_token, hash_password, v
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # create_all is convenient for local setup. Use versioned migrations in production.
+    if settings.environment.lower() == "production" and len(settings.jwt_secret) < 32:
+        raise RuntimeError("JWT_SECRET must be at least 32 characters in production")
     Base.metadata.create_all(bind=engine)
     yield
 
