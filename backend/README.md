@@ -33,7 +33,7 @@ Interactive API documentation is available at `/docs` while the service is runni
 Seller registrations create a pending seller profile. An administrator must approve the profile before the seller can publish products.
 
 ## First administrator
-Set `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAME`, and `BOOTSTRAP_ADMIN_PASSWORD` (minimum 14 characters) in the process environment, then run:
+First apply the database migrations with `alembic upgrade head` from this directory. Then set `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_NAME`, and `BOOTSTRAP_ADMIN_PASSWORD` (minimum 14 characters) in the process environment, and run:
 
 ```bash
 python -m app.bootstrap_admin
