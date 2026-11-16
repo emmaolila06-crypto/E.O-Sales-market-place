@@ -106,3 +106,19 @@ class CollectionPoint(Base):
     opening_hours: Mapped[str | None] = mapped_column(String(160), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PayoutRequest(Base):
+    __tablename__ = "payout_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    seller_id: Mapped[int] = mapped_column(ForeignKey("seller_profiles.id"), index=True)
+    amount_ugx: Mapped[int] = mapped_column(Integer)
+    payout_method: Mapped[str] = mapped_column(String(30))
+    recipient_name: Mapped[str] = mapped_column(String(160))
+    payout_phone: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
+    review_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
