@@ -178,6 +178,38 @@ def calculate_platform_commission(line_total_ugx: int, commission_bps: int) -> i
     return (line_total_ugx * commission_bps + 5000) // 10000
 
 
+@app.get("/collection-points")
+def list_collection_points(db: Session = Depends(get_db)):
+    points = db.scalars(select(models.CollectionPoint).where(models.CollectionPoint.is_active.is_(True)).order_by(models.CollectionPoint.district, models.CollectionPoint.name)).all()
+    return [{"id": p.id, "name": p.name, "address": p.address, "district": p.district, "contact_phone": p.contact_phone, "opening_hours": p.opening_hours} for p in points]
+
+
+@app.post("/admin/collection-points", status_code=201)
+def create_collection_point(payload: schemas.CollectionPointCreate, user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    point = models.CollectionPoint(**payload.model_dump())
+    db.add(point)
+    db.commit()
+    db.refresh(point)
+    return {"id": point.id, "name": point.name, "address": point.address, "district": point.district, "contact_phone": point.contact_phone, "opening_hours": point.opening_hours, "is_active": point.is_active}
+
+
+@app.get("/admin/collection-points")
+def admin_collection_points(user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    points = db.scalars(select(models.CollectionPoint).order_by(models.CollectionPoint.district, models.CollectionPoint.name)).all()
+    return [{"id": p.id, "name": p.name, "address": p.address, "district": p.district, "contact_phone": p.contact_phone, "opening_hours": p.opening_hours, "is_active": p.is_active} for p in points]
+
+
+@app.patch("/admin/collection-points/{point_id}")
+def update_collection_point(point_id: int, payload: schemas.CollectionPointUpdate, user: models.User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    point = db.get(models.CollectionPoint, point_id)
+    if not point:
+        raise HTTPException(status_code=404, detail="Collection point not found")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(point, key, value)
+    db.commit()
+    return {"id": point.id, "name": point.name, "address": point.address, "district": point.district, "contact_phone": point.contact_phone, "opening_hours": point.opening_hours, "is_active": point.is_active}
+
+
 @app.post("/orders", response_model=schemas.OrderOut, status_code=201)
 def create_order(payload: schemas.OrderCreate, user: models.User = Depends(require_role("customer")), db: Session = Depends(get_db)):
     if payload.fulfilment_method == "home_delivery" and not payload.delivery_address:
