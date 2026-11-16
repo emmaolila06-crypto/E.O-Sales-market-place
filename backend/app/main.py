@@ -208,6 +208,35 @@ def create_order(payload: schemas.OrderCreate, user: models.User = Depends(requi
     return saved
 
 
+@app.post("/orders/{order_id}/cancel")
+def cancel_order(order_id: int, user: models.User = Depends(require_role("customer")), db: Session = Depends(get_db)):
+    order = db.scalar(
+        select(models.Order)
+        .options(selectinload(models.Order.items))
+        .where(models.Order.id == order_id, models.Order.customer_id == user.id)
+    )
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.payment_status != "unpaid" or order.status != "awaiting_payment":
+        raise HTTPException(status_code=409, detail="Only unpaid orders awaiting payment can be cancelled. Paid orders require a supported refund process.")
+    if order.status == "cancelled":
+        raise HTTPException(status_code=409, detail="This order has already been cancelled")
+    try:
+        for item in order.items:
+            db.execute(
+                update(models.Product)
+                .where(models.Product.id == item.product_id)
+                .values(stock_quantity=models.Product.stock_quantity + item.quantity)
+            )
+        order.status = "cancelled"
+        order.payment_status = "cancelled"
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"id": order.id, "status": order.status, "payment_status": order.payment_status}
+
+
 @app.get("/orders/my", response_model=list[schemas.OrderOut])
 def my_orders(user: models.User = Depends(require_role("customer")), db: Session = Depends(get_db)):
     return db.scalars(
