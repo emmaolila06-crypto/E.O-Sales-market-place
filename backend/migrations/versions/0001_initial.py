@@ -66,12 +66,15 @@ def upgrade() -> None:
         sa.Column("product_name", sa.String(180), nullable=False),
         sa.Column("quantity", sa.Integer(), nullable=False),
         sa.Column("unit_price_ugx", sa.Integer(), nullable=False),
-        sa.Column("line_total_ugx", sa.Integer(), nullable=False))
+        sa.Column("line_total_ugx", sa.Integer(), nullable=False),
+        sa.Column("fulfilment_status", sa.String(30), nullable=False, server_default="pending"))
+    op.create_index("ix_order_items_fulfilment_status", "order_items", ["fulfilment_status"])
     op.create_index("ix_order_items_order_id", "order_items", ["order_id"])
     op.create_index("ix_order_items_seller_id", "order_items", ["seller_id"])
 
 
 def downgrade() -> None:
+    op.drop_index("ix_order_items_fulfilment_status", table_name="order_items")
     op.drop_index("ix_order_items_seller_id", table_name="order_items")
     op.drop_index("ix_order_items_order_id", table_name="order_items")
     op.drop_table("order_items")
